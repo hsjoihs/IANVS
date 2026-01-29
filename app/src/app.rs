@@ -1,40 +1,40 @@
 use std::{collections::HashMap, time::Duration};
 
 use futures::{StreamExt, stream::FusedStream};
+use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::IntervalStream;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
-struct MacAddress([u8; 6]);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From, Serialize, Deserialize)]
+pub struct MacAddress(pub [u8; 6]);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From, Serialize, Deserialize)]
+pub struct DiscordUserId(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
-struct DiscordUserId(u64);
+pub struct UserConnectedEvent(pub MacAddress);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
-struct DiscordMessageId(u64);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
-struct UserConnectedEvent(MacAddress);
-
-enum UserAssociationRequest {
+#[derive(Debug)]
+pub enum UserAssociationRequest {
     AssociateRequest(MacAddress, DiscordUserId),
     NeverAskForAssociationInFutureRequest(MacAddress),
 }
 
-enum DiscordUserAssociation {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DiscordUserAssociation {
     Associated(DiscordUserId),
     /// A user has requested to never be asked for association again.
     /// In this case we should entirely mute the events from this MAC address.
     AskedNotToAssociateUser,
 }
 
-trait HasPersistingAssociationState {
+pub trait HasPersistingAssociationState {
     async fn reconcile_and_persist_association_state(
         &self,
         current: Option<HashMap<MacAddress, DiscordUserAssociation>>,
     ) -> HashMap<MacAddress, DiscordUserAssociation>;
 }
 
-trait HasOutputConnectors {
+pub trait HasOutputConnectors {
     async fn report_user_connected(&self, user: DiscordUserId, address: MacAddress);
 
     async fn report_unknown_user_connected(&self, address: MacAddress);
@@ -46,7 +46,7 @@ trait HasOutputConnectors {
 /// recover the stream and start producing events/requests again.
 /// In the event of any of input `Stream`s' exhaustion, the `app` `Future` immediately returns,
 /// signalling that the entire application should shut down for a restart.
-async fn app(
+pub async fn app(
     user_connected_events: impl FusedStream<Item = UserConnectedEvent>,
     user_association_requests: impl FusedStream<Item = UserAssociationRequest>,
     association_persistence: impl HasPersistingAssociationState,
@@ -59,10 +59,10 @@ async fn app(
         PeriodicReconciliationTimer,
     }
 
-    let user_connected_events = user_connected_events.fuse();
+    let user_connected_events = user_connected_events;
     futures::pin_mut!(user_connected_events);
 
-    let user_association_requests = user_association_requests.fuse();
+    let user_association_requests = user_association_requests;
     futures::pin_mut!(user_association_requests);
 
     let reconciliation_timer =
