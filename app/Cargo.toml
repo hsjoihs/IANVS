@@ -11,3 +11,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 serenity = "0.12.5"
 tokio = "1.49.0"
 tokio-stream = "0.1.18"
+envy = "0.4.2"
