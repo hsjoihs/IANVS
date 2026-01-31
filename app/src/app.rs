@@ -7,11 +7,40 @@ use tokio_stream::wrappers::IntervalStream;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From, Serialize, Deserialize)]
 pub struct MacAddress(pub [u8; 6]);
 
+impl MacAddress {
+    pub fn parse(s: &str) -> Option<Self> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 6 {
+            return None;
+        }
+        let mut bytes = [0u8; 6];
+        for (i, part) in parts.iter().enumerate() {
+            // note: We would be accepting strings like 0:0:0:0:0:0 as MAC addresses
+            //       but here we don't need to be so strict as to reject them
+            bytes[i] = u8::from_str_radix(part, 16).ok()?;
+        }
+        Some(MacAddress(bytes))
+    }
+}
+
+impl std::fmt::Display for MacAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From, Serialize, Deserialize)]
 pub struct DiscordUserId(pub u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
-pub struct UserConnectedEvent(pub MacAddress);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UserNetworkEvent {
+    Connected(MacAddress),
+    Disconnected(MacAddress),
+}
 
 #[derive(Debug)]
 pub enum UserAssociationRequest {
@@ -38,6 +67,10 @@ pub trait HasOutputConnectors {
     async fn report_user_connected(&self, user: DiscordUserId, address: MacAddress);
 
     async fn report_unknown_user_connected(&self, address: MacAddress);
+
+    async fn report_user_disconnected(&self, user: DiscordUserId, address: MacAddress);
+
+    async fn report_unknown_user_disconnected(&self, address: MacAddress);
 }
 
 /// The application logic with abstract I/O connectors.
@@ -47,23 +80,17 @@ pub trait HasOutputConnectors {
 /// In the event of any of input `Stream`s' exhaustion, the `app` `Future` immediately returns,
 /// signalling that the entire application should shut down for a restart.
 pub async fn app(
-    user_connected_events: impl FusedStream<Item = UserConnectedEvent>,
-    user_association_requests: impl FusedStream<Item = UserAssociationRequest>,
+    mut user_network_events: impl FusedStream<Item = UserNetworkEvent> + Unpin,
+    mut user_association_requests: impl FusedStream<Item = UserAssociationRequest> + Unpin,
     association_persistence: impl HasPersistingAssociationState,
     output_connectors: impl HasOutputConnectors,
 ) {
     #[derive(derive_more::From)]
     enum InputEvent {
-        UserConnectedEvent(UserConnectedEvent),
+        UserNetworkEvent(UserNetworkEvent),
         UserAssociationRequest(UserAssociationRequest),
         PeriodicReconciliationTimer,
     }
-
-    let user_connected_events = user_connected_events;
-    futures::pin_mut!(user_connected_events);
-
-    let user_association_requests = user_association_requests;
-    futures::pin_mut!(user_association_requests);
 
     let reconciliation_timer =
         IntervalStream::new(tokio::time::interval(Duration::from_secs(120))).fuse();
@@ -77,7 +104,7 @@ pub async fn app(
         use DiscordUserAssociation::*;
 
         let next_event: InputEvent = futures::select! {
-            event = user_connected_events.next() => {
+            event = user_network_events.next() => {
                 match event {
                     Some(event) => event.into(),
                     None => return,
@@ -93,7 +120,7 @@ pub async fn app(
         };
 
         match next_event {
-            InputEvent::UserConnectedEvent(UserConnectedEvent(mac_addr)) => {
+            InputEvent::UserNetworkEvent(UserNetworkEvent::Connected(mac_addr)) => {
                 match association_state.get(&mac_addr) {
                     Some(Associated(discord_user)) => {
                         output_connectors
@@ -104,6 +131,21 @@ pub async fn app(
                     None => {
                         output_connectors
                             .report_unknown_user_connected(mac_addr)
+                            .await;
+                    }
+                };
+            }
+            InputEvent::UserNetworkEvent(UserNetworkEvent::Disconnected(mac_addr)) => {
+                match association_state.get(&mac_addr) {
+                    Some(Associated(discord_user)) => {
+                        output_connectors
+                            .report_user_disconnected(*discord_user, mac_addr)
+                            .await;
+                    }
+                    Some(AskedNotToAssociateUser) => (),
+                    None => {
+                        output_connectors
+                            .report_unknown_user_disconnected(mac_addr)
                             .await;
                     }
                 };
