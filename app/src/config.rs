@@ -81,7 +81,10 @@ impl Config {
         let discord_channel_capacity = match std::env::var("DISCORD_CHANNEL_CAPACITY") {
             Ok(value) => {
                 let parsed: usize = value.parse().with_context(|| {
-                    format!("DISCORD_CHANNEL_CAPACITY must be a valid usize, got {}", value)
+                    format!(
+                        "DISCORD_CHANNEL_CAPACITY must be a valid usize, got {}",
+                        value
+                    )
                 })?;
                 ensure!(parsed > 0, "DISCORD_CHANNEL_CAPACITY must be at least 1");
                 parsed

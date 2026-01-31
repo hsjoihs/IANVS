@@ -64,10 +64,7 @@ impl GitStore {
     pub fn validate_repo(&self) -> Result<()> {
         let repo = Repository::open(&self.repo_path).context("Failed to open git repository")?;
         repo.find_remote(&self.remote_name).with_context(|| {
-            format!(
-                "Git remote '{}' not found in repository",
-                self.remote_name
-            )
+            format!("Git remote '{}' not found in repository", self.remote_name)
         })?;
         let local_ref = format!("refs/heads/{}", self.branch_name);
         let remote_ref = format!("refs/remotes/{}/{}", self.remote_name, self.branch_name);
