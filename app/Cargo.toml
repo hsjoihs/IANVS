@@ -1,13 +1,21 @@
 [package]
-name = "app"
+name = "ianvs-app"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 anyhow = { version = "1.0.100", features = ["backtrace"] }
+atomic-write-file = "0.2"
+chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.1.1", features = ["from"] }
+dotenvy = "0.15"
 futures = "0.3.31"
+git2 = { version = "0.19", features = ["vendored-openssl"] }
+procfs = "0.18"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 serenity = "0.12.5"
-tokio = "1.49.0"
+tokio = { version = "1.49.0", features = ["full"] }
 tokio-stream = "0.1.18"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
