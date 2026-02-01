@@ -6,6 +6,7 @@ use std::{
 use futures::{StreamExt, stream::FusedStream};
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::IntervalStream;
+use tracing::error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
 pub struct MacAddress(pub [u8; 6]);
@@ -53,6 +54,15 @@ pub enum DiscordUserAssociation {
     AskedNotToAssociateUser,
 }
 
+impl DiscordUserAssociation {
+    pub fn associated_user(&self) -> Option<DiscordUserId> {
+        match self {
+            DiscordUserAssociation::Associated(user_id) => Some(*user_id),
+            DiscordUserAssociation::AskedNotToAssociateUser => None,
+        }
+    }
+}
+
 pub trait HasPersistingAssociationState {
     async fn reconcile_and_persist_association_state(
         &self,
@@ -70,91 +80,107 @@ pub trait HasOutputConnectors {
     async fn report_unknown_user_disconnected(&self, address: MacAddress);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum NetworkDeviceDiff {
-    Connected(MacAddress),
-    Disconnected(MacAddress),
-}
-
-impl NetworkDeviceDiff {
-    pub fn set_from_diff(
-        previously_connected: &HashSet<MacAddress>,
-        currently_connected: &HashSet<MacAddress>,
-    ) -> Vec<NetworkDeviceDiff> {
-        let newly_connected = currently_connected
-            .difference(previously_connected)
-            .copied()
-            .map(NetworkDeviceDiff::Connected);
-        let disconnected = previously_connected
-            .difference(currently_connected)
-            .copied()
-            .map(NetworkDeviceDiff::Disconnected);
-
-        newly_connected.chain(disconnected).collect()
-    }
-}
-
-#[derive(derive_more::From)]
-enum InputEvent {
-    DeviceDiffDetected(NetworkDeviceDiff),
-    UserAssociationRequested(UserAssociationRequest),
-    ReconciliationTimerInvoked,
-}
-
-async fn process_input_event_and_update_association_state(
-    event: InputEvent,
+async fn handle_connected_addresses_change(
+    previously_connected: &HashSet<MacAddress>,
+    currently_connected: &HashSet<MacAddress>,
     output_connectors: &impl HasOutputConnectors,
-    association_persistence: &impl HasPersistingAssociationState,
-    mut association_state: HashMap<MacAddress, DiscordUserAssociation>,
-) -> HashMap<MacAddress, DiscordUserAssociation> {
-    use DiscordUserAssociation::{AskedNotToAssociateUser, Associated};
-    match event {
-        InputEvent::DeviceDiffDetected(NetworkDeviceDiff::Connected(mac_addr)) => {
-            match association_state.get(&mac_addr) {
-                Some(Associated(discord_user)) => {
-                    output_connectors
-                        .report_user_connected(*discord_user, mac_addr)
-                        .await;
-                }
-                Some(AskedNotToAssociateUser) => (),
-                None => {
-                    output_connectors
-                        .report_unknown_user_connected(mac_addr)
-                        .await;
-                }
-            }
-        }
-        InputEvent::DeviceDiffDetected(NetworkDeviceDiff::Disconnected(mac_addr)) => {
-            match association_state.get(&mac_addr) {
-                Some(Associated(discord_user)) => {
-                    output_connectors
-                        .report_user_disconnected(*discord_user, mac_addr)
-                        .await;
-                }
-                Some(AskedNotToAssociateUser) => (),
-                None => {
-                    output_connectors
-                        .report_unknown_user_disconnected(mac_addr)
-                        .await;
-                }
-            }
-        }
-        InputEvent::UserAssociationRequested(request) => match request {
-            UserAssociationRequest::AssociateRequest(mac_address, discord_user_id) => {
-                association_state.insert(mac_address, Associated(discord_user_id));
-            }
-            UserAssociationRequest::NeverAskForAssociationInFutureRequest(mac_address) => {
-                association_state.insert(mac_address, AskedNotToAssociateUser);
-            }
+    association: &HashMap<MacAddress, DiscordUserAssociation>,
+) {
+    fn map_both<T, R>((a, b): (T, T), f: impl Fn(T) -> R) -> (R, R) {
+        (f(a), f(b))
+    }
+
+    fn hashset_diff_both_ways<T: Eq + std::hash::Hash + Copy>(
+        left: &HashSet<T>,
+        right: &HashSet<T>,
+    ) -> (
+        /* left - right */ HashSet<T>,
+        /* right - left */ HashSet<T>,
+    ) {
+        (
+            left.difference(right).copied().collect(),
+            right.difference(left).copied().collect(),
+        )
+    }
+
+    let (newly_connected_devices, disconnected_devices) =
+        hashset_diff_both_ways(currently_connected, previously_connected);
+
+    let (newly_connected_unknown_devices, disconnected_unknown_devices) = map_both(
+        (&newly_connected_devices, &disconnected_devices),
+        |connected| {
+            connected
+                .iter()
+                .filter(|mac_addr|
+                    // We don't want to log AskedNotToAssociateUser-MAC-addresses
+                    // as devices of unknown users, so we test for absence of any association here.
+                    !association.contains_key(mac_addr))
+                .copied()
+                .collect::<HashSet<_>>()
         },
-        InputEvent::ReconciliationTimerInvoked => {
-            association_state = association_persistence
-                .reconcile_and_persist_association_state(Some(association_state))
+    );
+
+    for disconnected_unknown_device in disconnected_unknown_devices {
+        output_connectors
+            .report_unknown_user_disconnected(disconnected_unknown_device)
+            .await;
+    }
+
+    for new_unknown_device in newly_connected_unknown_devices {
+        output_connectors
+            .report_unknown_user_connected(new_unknown_device)
+            .await;
+    }
+
+    let (previously_connected_users, currently_connected_users) =
+        map_both((previously_connected, currently_connected), |connected| {
+            connected
+                .iter()
+                .filter_map(|mac_addr| {
+                    association
+                        .get(mac_addr)
+                        .and_then(DiscordUserAssociation::associated_user)
+                })
+                .collect::<HashSet<_>>()
+        });
+
+    let (newly_connected_users, disconnected_users) =
+        hashset_diff_both_ways(&currently_connected_users, &previously_connected_users);
+
+    for new_user in newly_connected_users {
+        let address_example = newly_connected_devices.iter().find(|mac_addr| {
+            association.get(mac_addr) == Some(&DiscordUserAssociation::Associated(new_user))
+        });
+
+        if let Some(address_example) = address_example {
+            output_connectors
+                .report_user_connected(new_user, *address_example)
                 .await;
+        } else {
+            error!(
+                "Logic error: {}",
+                anyhow::anyhow!("newly connected user has no associated connected device")
+            );
         }
     }
 
-    association_state
+    for disconnected_user in disconnected_users {
+        let address_example = disconnected_devices.iter().find(|mac_addr| {
+            association.get(mac_addr)
+                == Some(&DiscordUserAssociation::Associated(disconnected_user))
+        });
+
+        if let Some(address_example) = address_example {
+            output_connectors
+                .report_user_disconnected(disconnected_user, *address_example)
+                .await;
+        } else {
+            error!(
+                "Logic error: {}",
+                anyhow::anyhow!("disconnected user has no associated disconnected device")
+            );
+        }
+    }
 }
 
 /// The application logic with abstract I/O connectors.
@@ -185,37 +211,40 @@ pub async fn app(
     let mut connected_addresses = initial_connected_addresses;
 
     loop {
-        let next_events_to_process: Vec<InputEvent> = futures::select! {
+        futures::select! {
             event = connected_addresses_updates.next() => {
                 match event {
                     Some(latest_connected_addresses_set) => {
-                        let events: Vec<InputEvent> = NetworkDeviceDiff::set_from_diff(
+                        handle_connected_addresses_change(
                             &connected_addresses,
                             &latest_connected_addresses_set,
-                        ).into_iter().map(Into::into).collect();
+                            &output_connectors,
+                            &association_state,
+                        )
+                        .await;
                         connected_addresses = latest_connected_addresses_set;
-                        events
                     },
                     None => return,
                 }
             },
             request = user_association_requests.next() => {
+                use UserAssociationRequest::{AssociateRequest, NeverAskForAssociationInFutureRequest};
+                use DiscordUserAssociation::{AskedNotToAssociateUser, Associated};
                 match request {
-                    Some(request) => vec![request.into()],
+                    Some(AssociateRequest(mac_address, discord_user_id)) => {
+                        association_state.insert(mac_address, Associated(discord_user_id));
+                    },
+                    Some(NeverAskForAssociationInFutureRequest(mac_address)) => {
+                        association_state.insert(mac_address, AskedNotToAssociateUser);
+                    },
                     None => return,
                 }
             },
-            _ = reconciliation_timer.next() => vec![InputEvent::ReconciliationTimerInvoked],
+            _ = reconciliation_timer.next() => {
+                association_state = association_persistence
+                    .reconcile_and_persist_association_state(Some(association_state))
+                    .await;
+            },
         };
-
-        for event in next_events_to_process {
-            association_state = process_input_event_and_update_association_state(
-                event,
-                &output_connectors,
-                &association_persistence,
-                association_state,
-            )
-            .await;
-        }
     }
 }
