@@ -36,7 +36,7 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
             // iPhones on power-saving mode (as reported by @sim1222),
             // buffer ARP requests and respond to them later in a batch
             // to save power in exchange for increased latency.
-            &format!("--timeout={}", scan_interval_secs * 300),
+            &format!("--timeout={}", (scan_interval_secs as u32) * 300),
         ])
         .output()
         .await
