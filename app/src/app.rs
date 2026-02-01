@@ -164,6 +164,7 @@ async fn process_input_event_and_update_association_state(
 /// In the event of any of input `Stream`s' exhaustion, the `app` `Future` immediately returns,
 /// signalling that the entire application should shut down for a restart.
 pub async fn app(
+    persistence_interval_secs: u16,
     initial_connected_addresses: HashSet<MacAddress>,
     // A stream of "set of MAC addresses currently connected to the network"
     mut connected_addresses_updates: impl FusedStream<Item = HashSet<MacAddress>> + Unpin,
@@ -171,8 +172,12 @@ pub async fn app(
     association_persistence: impl HasPersistingAssociationState,
     output_connectors: impl HasOutputConnectors,
 ) {
-    let mut reconciliation_timer =
-        Box::pin(IntervalStream::new(tokio::time::interval(Duration::from_secs(120))).fuse());
+    let mut reconciliation_timer = Box::pin(
+        IntervalStream::new(tokio::time::interval(Duration::from_secs(u64::from(
+            persistence_interval_secs,
+        ))))
+        .fuse(),
+    );
 
     let mut association_state = association_persistence
         .reconcile_and_persist_association_state(None)

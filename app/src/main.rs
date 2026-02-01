@@ -35,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
                 .await
                 .expect("initial network scanning");
         app::app(
+            config.persistence_interval_secs,
             initial_connected_addresses,
             scanning_stream,
             association_requests_stream,

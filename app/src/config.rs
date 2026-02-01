@@ -14,6 +14,8 @@ pub struct Config {
     pub associations_file: String,
     #[serde(default = "default_scan_interval_secs")]
     pub scan_interval_secs: u16,
+    #[serde(default = "default_persistence_interval_secs")]
+    pub persistence_interval_secs: u16,
 }
 
 impl Config {
@@ -32,6 +34,10 @@ fn default_discord_channel_capacity() -> usize {
 
 fn default_scan_interval_secs() -> u16 {
     600
+}
+
+fn default_persistence_interval_secs() -> u16 {
+    60
 }
 
 fn deserialize_trimmed_nonempty<'de, D>(deserializer: D) -> Result<String, D::Error>
