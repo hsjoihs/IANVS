@@ -1,11 +1,11 @@
-use std::collections::HashSet;
-
 use crate::config::Config;
 
 mod app;
 mod config;
 mod discord;
+mod mac_address_scanning;
 mod state_persistence;
+mod stream_ext;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -19,6 +19,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .await;
 
+    let initial_connected_addresses = mac_address_scanning::scan_once(config.scan_interval_secs)
+        .await
+        .expect("initial network scanning");
+    let scanning_stream = mac_address_scanning::periodic_scanning(config.scan_interval_secs);
+
     let association_persistence =
         state_persistence::JsonFileAssociationPersistence::new(&config.associations_file);
 
@@ -30,10 +35,9 @@ async fn main() -> anyhow::Result<()> {
                 anyhow::bail!("Discord client exited without error");
             }
         }
-        // TODO: connect real network events stream
         _ = app::app(
-            HashSet::new(),
-            futures::stream::pending(),
+            initial_connected_addresses,
+            scanning_stream,
             association_requests_stream,
             association_persistence,
             output_connector,

@@ -12,6 +12,8 @@ pub struct Config {
     pub discord_channel_capacity: usize,
     #[serde(default = "default_associations_file")]
     pub associations_file: String,
+    #[serde(default = "default_scan_interval_secs")]
+    pub scan_interval_secs: u16,
 }
 
 impl Config {
@@ -26,6 +28,10 @@ fn default_associations_file() -> String {
 
 fn default_discord_channel_capacity() -> usize {
     100
+}
+
+fn default_scan_interval_secs() -> u16 {
+    600
 }
 
 fn deserialize_trimmed_nonempty<'de, D>(deserializer: D) -> Result<String, D::Error>
