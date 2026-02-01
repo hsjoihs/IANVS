@@ -107,7 +107,7 @@ async fn process_input_event_and_update_association_state(
     association_persistence: &impl HasPersistingAssociationState,
     mut association_state: HashMap<MacAddress, DiscordUserAssociation>,
 ) -> HashMap<MacAddress, DiscordUserAssociation> {
-    use DiscordUserAssociation::{Associated, AskedNotToAssociateUser};
+    use DiscordUserAssociation::{AskedNotToAssociateUser, Associated};
     match event {
         InputEvent::DeviceDiffDetected(NetworkDeviceDiff::Connected(mac_addr)) => {
             match association_state.get(&mac_addr) {
