@@ -175,7 +175,9 @@ impl<H: CacheHttp> crate::app::HasOutputConnectors for IanvsDiscordBotOutputAdap
     async fn report_unknown_user_connected(&self, address: crate::app::MacAddress) {
         info!("Unknown user connected: mac_address={}", address);
         self.send_unknown_device_message(
-            "An unrecognized device connected. If this is you, click to claim it.",
+            &format!(
+                "An unrecognized device connected (`{address}`). If this is you, click to claim it."
+            ),
             address,
         )
         .await;
@@ -203,7 +205,9 @@ impl<H: CacheHttp> crate::app::HasOutputConnectors for IanvsDiscordBotOutputAdap
     async fn report_unknown_user_disconnected(&self, address: crate::app::MacAddress) {
         info!("Unknown user disconnected: mac_address={}", address);
         self.send_unknown_device_message(
-            "An unrecognized device disconnected. If this is you, click to claim it.",
+            &format!(
+                "An unrecognized device disconnected (`{address}`). If this is you, click to claim it."
+            ),
             address,
         )
         .await;
