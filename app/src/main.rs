@@ -25,13 +25,24 @@ async fn main() -> anyhow::Result<()> {
         )
         .await;
 
-    let initial_connected_addresses = mac_address_scanning::scan_once(config.scan_interval_secs)
-        .await
-        .expect("initial network scanning");
-    let scanning_stream = mac_address_scanning::periodic_scanning(config.scan_interval_secs);
-
     let association_persistence =
         state_persistence::JsonFileAssociationPersistence::new(&config.associations_file);
+
+    let app_task = async {
+        let scanning_stream = mac_address_scanning::periodic_scanning(config.scan_interval_secs);
+        let initial_connected_addresses =
+            mac_address_scanning::scan_once(config.scan_interval_secs)
+                .await
+                .expect("initial network scanning");
+        app::app(
+            initial_connected_addresses,
+            scanning_stream,
+            association_requests_stream,
+            association_persistence,
+            output_connector,
+        )
+        .await;
+    };
 
     tokio::select! {
         result = discord_bot_client.start() => {
@@ -40,13 +51,7 @@ async fn main() -> anyhow::Result<()> {
             }
             anyhow::bail!("Discord client exited without error");
         }
-        () = app::app(
-            initial_connected_addresses,
-            scanning_stream,
-            association_requests_stream,
-            association_persistence,
-            output_connector,
-        ) => {
+        () = app_task => {
             anyhow::bail!("App logic exited, shutting down");
         }
     }
