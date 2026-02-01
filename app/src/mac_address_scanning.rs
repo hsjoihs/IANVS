@@ -11,7 +11,7 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
     // Run `arp-scan` and read off its output.
     // We expect either
     //  - the bot process is running with an elevated privilege
-    //  - arp-scan can be run without privilege (e.g. by running `sudo setcap cap_net_raw=ep "${which arp-scan}"` in advance)
+    //  - arp-scan can be run without privilege (e.g. by running `sudo setcap cap_net_raw=ep "$(which arp-scan)"` in advance)
     // and if neither of these conditions is met, the command should fail and we must bail out.
     let output = Command::new("arp-scan")
         .args([
