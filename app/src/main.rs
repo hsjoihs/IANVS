@@ -1,6 +1,8 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 
+use tracing::info;
+
 use crate::config::Config;
 
 mod app;
@@ -16,6 +18,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_env().expect("failed to load configuration from environment");
+    info!("Loaded configuration: {:?}", config);
 
     let (mut discord_bot_client, output_connector, association_requests_stream) =
         discord::new_discord_client_with_io_adapters(
