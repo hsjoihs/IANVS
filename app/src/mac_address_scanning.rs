@@ -5,7 +5,7 @@ use itertools::Itertools as _;
 use std::collections::HashSet;
 use std::time::Duration;
 use tokio::process::Command;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAddress>> {
     // Run `arp-scan` and read off its output.
@@ -13,6 +13,7 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
     //  - the bot process is running with an elevated privilege
     //  - arp-scan can be run without privilege (e.g. by running `sudo setcap cap_net_raw=ep "$(which arp-scan)"` in advance)
     // and if neither of these conditions is met, the command should fail and we must bail out.
+    debug!("Running arp-scan");
     let output = Command::new("arp-scan")
         .args([
             "--localnet",
@@ -41,6 +42,8 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
         .output()
         .await
         .context("Failed to execute arp-scan")?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    debug!("arp-scan complete. Output: {}", stdout);
 
     if !output.status.success() {
         anyhow::bail!(
@@ -50,7 +53,6 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
         );
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
     Ok(stdout
         .lines()
         .filter_map(|line| {
