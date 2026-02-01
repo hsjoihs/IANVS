@@ -18,7 +18,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        Ok(envy::from_env().context("failed to parse environment config")?)
+        envy::from_env().context("failed to parse environment config")
     }
 }
 

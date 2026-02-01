@@ -40,7 +40,7 @@ impl JsonFileAssociationPersistence {
                     "Failed to parse associations file {}: {err}",
                     self.path.display()
                 );
-                return HashMap::new();
+                HashMap::new()
             }
         }
     }
@@ -49,13 +49,13 @@ impl JsonFileAssociationPersistence {
         &self,
         map: &HashMap<MacAddress, DiscordUserAssociation>,
     ) -> anyhow::Result<()> {
-        if let Some(parent) = Path::new(&self.path).parent() {
-            if let Err(err) = fs::create_dir_all(parent).await {
-                anyhow::bail!(
-                    "Failed to create associations directory {}: {err}",
-                    parent.display()
-                );
-            }
+        if let Some(parent) = Path::new(&self.path).parent()
+            && let Err(err) = fs::create_dir_all(parent).await
+        {
+            anyhow::bail!(
+                "Failed to create associations directory {}: {err}",
+                parent.display()
+            );
         }
 
         let json = match serde_json::to_vec_pretty(&map) {
@@ -90,13 +90,13 @@ impl HasPersistingAssociationState for JsonFileAssociationPersistence {
         let merged = match current {
             Some(current) => {
                 for (mac, association) in current {
-                    if let Some(existing) = persisted.get(&mac) {
-                        if existing != &association {
-                            info!(
-                                "Overriding persisted association for {} (persisted: {:?}, current: {:?})",
-                                mac, existing, association
-                            );
-                        }
+                    if let Some(existing) = persisted.get(&mac)
+                        && existing != &association
+                    {
+                        info!(
+                            "Overriding persisted association for {} (persisted: {:?}, current: {:?})",
+                            mac, existing, association
+                        );
                     }
                     result.insert(mac, association);
                 }

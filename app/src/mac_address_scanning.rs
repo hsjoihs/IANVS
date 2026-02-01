@@ -54,11 +54,12 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
     Ok(stdout
         .lines()
         .flat_map(|line| {
-            if let &[_, column_1] = line.split_whitespace().collect_vec().as_slice() {
-                if let Some(parsed) = MacAddress::parse(column_1) {
-                    return Some(parsed);
-                }
+            if let &[_, column_1] = line.split_whitespace().collect_vec().as_slice()
+                && let Some(parsed) = MacAddress::parse(column_1)
+            {
+                return Some(parsed);
             }
+
             warn!("Ignoring line from arp-scan (unexpected format): {}", line);
             None
         })
