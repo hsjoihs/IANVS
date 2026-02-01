@@ -12,7 +12,7 @@ pub fn repeat_task_until_empty<T>(
     //            writing `move |()| async { yield_next_task().... }` would make the resulting Future
     //            borrow and leak `yield_next_task`, so to control the situation we need to use `futures::FutureExt::map`,
     //            which makes it a lot harder to read.
-    futures::stream::unfold(yield_next_task, move |mut next| async {
+    futures::stream::unfold(yield_next_task, |mut next| async {
         next().await.map(|v| (v, next))
     })
 }
