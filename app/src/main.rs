@@ -1,22 +1,9 @@
-use crate::{
-    app::{DiscordUserAssociation, MacAddress},
-    config::Config,
-};
-use std::collections::HashMap;
+use crate::config::Config;
 
 mod app;
 mod config;
 mod discord;
-
-struct NoPersistence {}
-impl app::HasPersistingAssociationState for NoPersistence {
-    async fn reconcile_and_persist_association_state(
-        &self,
-        current: Option<HashMap<MacAddress, DiscordUserAssociation>>,
-    ) -> HashMap<MacAddress, DiscordUserAssociation> {
-        current.unwrap_or_default()
-    }
-}
+mod state_persistence;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,6 +17,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .await;
 
+    let association_persistence =
+        state_persistence::JsonFileAssociationPersistence::new(&config.associations_file);
+
     tokio::select! {
         result = discord_bot_client.start() => {
             if let Err(e) = result {
@@ -38,8 +28,13 @@ async fn main() -> anyhow::Result<()> {
                 anyhow::bail!("Discord client exited without error");
             }
         }
-        // TODO: connect real network events stream and persistence
-        _ = app::app(futures::stream::pending(), association_requests_stream, NoPersistence {}, output_connector) => {
+        // TODO: connect real network events stream
+        _ = app::app(
+            futures::stream::pending(),
+            association_requests_stream,
+            association_persistence,
+            output_connector,
+        ) => {
             anyhow::bail!("App logic exited, shutting down");
         }
     }

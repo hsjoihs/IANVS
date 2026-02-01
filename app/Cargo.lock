@@ -44,6 +44,7 @@ dependencies = [
  "envy",
  "futures",
  "serde",
+ "serde_json",
  "serenity",
  "tokio",
  "tokio-stream",
