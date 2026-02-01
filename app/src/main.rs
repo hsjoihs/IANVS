@@ -12,6 +12,9 @@ mod stream_ext;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // initialize tracing
+    tracing_subscriber::fmt::init();
+
     let config = Config::from_env().expect("failed to load configuration from environment");
 
     let (mut discord_bot_client, output_connector, association_requests_stream) =
