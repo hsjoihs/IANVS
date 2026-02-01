@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::config::Config;
 
 mod app;
@@ -30,6 +32,7 @@ async fn main() -> anyhow::Result<()> {
         }
         // TODO: connect real network events stream
         _ = app::app(
+            HashSet::new(),
             futures::stream::pending(),
             association_requests_stream,
             association_persistence,
