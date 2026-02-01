@@ -1,7 +1,7 @@
 use futures::stream::FusedStream;
 
 pub fn repeat_task_until_empty<T>(
-    yield_next_task: impl (AsyncFnMut() -> Option<T>) + 'static,
+    yield_next_task: impl AsyncFnMut() -> Option<T>,
 ) -> impl FusedStream<Item = T> {
     // impl-note: We need the stream to hold onto `yield_next_task` and repeatedly invoke it,
     //            so we decided to just juggle the task yielder throughout the unfolding operation.
