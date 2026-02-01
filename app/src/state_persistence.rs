@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use tokio::fs;
 use tracing::{error, info};
 
@@ -13,31 +14,57 @@ pub struct JsonFileAssociationPersistence {
     path: PathBuf,
 }
 
+fn parsed_mac_addr_map_to_unparsed_map(
+    map: &HashMap<MacAddress, DiscordUserAssociation>,
+) -> HashMap<String, DiscordUserAssociation> {
+    map.iter()
+        .map(|(mac, association)| (mac.to_string(), *association))
+        .collect()
+}
+
+fn unparsed_mac_addr_map_to_parsed_map(
+    map: &HashMap<String, DiscordUserAssociation>,
+) -> anyhow::Result<HashMap<MacAddress, DiscordUserAssociation>> {
+    map.iter()
+        .map(|(mac, association)| {
+            MacAddress::parse(mac)
+                .map(|mac| (mac, *association))
+                .ok_or_else(|| anyhow::anyhow!("Invalid MAC address: {mac}"))
+        })
+        .collect()
+}
+
 impl JsonFileAssociationPersistence {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
 
     async fn load_persisted(&self) -> HashMap<MacAddress, DiscordUserAssociation> {
-        let persisted_contents = match fs::read(&self.path).await {
-            Ok(contents) => contents,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                return HashMap::new();
+        async fn inner(
+            path: &PathBuf,
+        ) -> anyhow::Result<HashMap<MacAddress, DiscordUserAssociation>> {
+            let read_result = fs::read(&path).await;
+            if let Err(ref err) = read_result
+                && err.kind() != std::io::ErrorKind::NotFound
+            {
+                return Ok(HashMap::new());
             }
-            Err(err) => {
-                error!(
-                    "Failed to read associations file {}: {err}",
-                    self.path.display()
-                );
-                return HashMap::new();
-            }
-        };
 
-        match serde_json::from_slice(&persisted_contents) {
-            Ok(parsed) => parsed,
+            let persisted_contents = read_result.context("reading associations file")?;
+            let contents_parsed_to_json = serde_json::from_slice(&persisted_contents)
+                .context("parsing associations file into JSON")?;
+
+            let parsed_map = unparsed_mac_addr_map_to_parsed_map(&contents_parsed_to_json)
+                .context("converting parsed JSON to MAC address map")?;
+
+            Ok(parsed_map)
+        }
+
+        match inner(&self.path).await {
+            Ok(map) => map,
             Err(err) => {
                 error!(
-                    "Failed to parse associations file {}: {err}",
+                    "Failed to load persisted associations from {}: {err}",
                     self.path.display()
                 );
                 HashMap::new()
@@ -58,7 +85,7 @@ impl JsonFileAssociationPersistence {
             );
         }
 
-        let json = match serde_json::to_vec_pretty(&map) {
+        let json = match serde_json::to_vec_pretty(&parsed_mac_addr_map_to_unparsed_map(map)) {
             Ok(json) => json,
             Err(err) => {
                 anyhow::bail!(

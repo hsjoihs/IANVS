@@ -7,7 +7,7 @@ use futures::{StreamExt, stream::FusedStream};
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::IntervalStream;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::From)]
 pub struct MacAddress(pub [u8; 6]);
 
 impl MacAddress {
