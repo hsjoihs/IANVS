@@ -53,7 +53,7 @@ pub async fn scan_once(scan_interval_secs: u16) -> anyhow::Result<HashSet<MacAdd
     let stdout = String::from_utf8_lossy(&output.stdout);
     Ok(stdout
         .lines()
-        .flat_map(|line| {
+        .filter_map(|line| {
             if let &[_, column_1] = line.split_whitespace().collect_vec().as_slice()
                 && let Some(parsed) = MacAddress::parse(column_1)
             {
@@ -71,7 +71,7 @@ pub fn periodic_scanning(
 ) -> impl FusedStream<Item = HashSet<MacAddress>> + Unpin {
     Box::pin(crate::stream_ext::repeat_task_until_empty(
         move || async move {
-            let (_, result) = tokio::join!(
+            let ((), result) = tokio::join!(
                 tokio::time::sleep(Duration::from_secs(scan_interval_secs.into())),
                 scan_once(scan_interval_secs)
             );

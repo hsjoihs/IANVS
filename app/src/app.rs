@@ -83,11 +83,11 @@ impl NetworkDeviceDiff {
     ) -> Vec<NetworkDeviceDiff> {
         let newly_connected = currently_connected
             .difference(previously_connected)
-            .cloned()
+            .copied()
             .map(NetworkDeviceDiff::Connected);
         let disconnected = previously_connected
             .difference(currently_connected)
-            .cloned()
+            .copied()
             .map(NetworkDeviceDiff::Disconnected);
 
         newly_connected.chain(disconnected).collect()
@@ -107,7 +107,7 @@ async fn process_input_event_and_update_association_state(
     association_persistence: &impl HasPersistingAssociationState,
     mut association_state: HashMap<MacAddress, DiscordUserAssociation>,
 ) -> HashMap<MacAddress, DiscordUserAssociation> {
-    use DiscordUserAssociation::*;
+    use DiscordUserAssociation::{Associated, AskedNotToAssociateUser};
     match event {
         InputEvent::DeviceDiffDetected(NetworkDeviceDiff::Connected(mac_addr)) => {
             match association_state.get(&mac_addr) {
@@ -122,7 +122,7 @@ async fn process_input_event_and_update_association_state(
                         .report_unknown_user_connected(mac_addr)
                         .await;
                 }
-            };
+            }
         }
         InputEvent::DeviceDiffDetected(NetworkDeviceDiff::Disconnected(mac_addr)) => {
             match association_state.get(&mac_addr) {
@@ -137,7 +137,7 @@ async fn process_input_event_and_update_association_state(
                         .report_unknown_user_disconnected(mac_addr)
                         .await;
                 }
-            };
+            }
         }
         InputEvent::UserAssociationRequested(request) => match request {
             UserAssociationRequest::AssociateRequest(mac_address, discord_user_id) => {
@@ -152,7 +152,7 @@ async fn process_input_event_and_update_association_state(
                 .reconcile_and_persist_association_state(Some(association_state))
                 .await;
         }
-    };
+    }
 
     association_state
 }

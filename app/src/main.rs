@@ -1,3 +1,6 @@
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+
 use crate::config::Config;
 
 mod app;
@@ -30,12 +33,11 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         result = discord_bot_client.start() => {
             if let Err(e) = result {
-                anyhow::bail!("Discord client error: {}", e);
-            } else {
-                anyhow::bail!("Discord client exited without error");
+                anyhow::bail!("Discord client error: {e}");
             }
+            anyhow::bail!("Discord client exited without error");
         }
-        _ = app::app(
+        () = app::app(
             initial_connected_addresses,
             scanning_stream,
             association_requests_stream,
