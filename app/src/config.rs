@@ -61,6 +61,6 @@ where
     let value = String::deserialize(deserializer)?;
     let parsed: u64 = value
         .parse()
-        .map_err(|_| serde::de::Error::custom("DISCORD_CHANNEL_ID must be a valid u64"))?;
+        .map_err(|_| serde::de::Error::custom("Channel ID must be a valid u64"))?;
     Ok(ChannelId::new(parsed))
 }
