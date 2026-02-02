@@ -7,7 +7,9 @@ pub struct Config {
     #[serde(deserialize_with = "deserialize_trimmed_nonempty")]
     pub discord_token: String,
     #[serde(deserialize_with = "deserialize_channel_id")]
-    pub discord_channel_id: ChannelId,
+    pub discord_user_notification_channel_id: ChannelId,
+    #[serde(deserialize_with = "deserialize_channel_id")]
+    pub discord_mac_inquiry_channel_id: ChannelId,
     #[serde(default = "default_discord_channel_capacity")]
     pub discord_channel_capacity: usize,
     #[serde(default = "default_associations_file")]
@@ -59,6 +61,6 @@ where
     let value = String::deserialize(deserializer)?;
     let parsed: u64 = value
         .parse()
-        .map_err(|_| serde::de::Error::custom("DISCORD_CHANNEL_ID must be a valid u64"))?;
+        .map_err(|_| serde::de::Error::custom("Channel ID must be a valid u64"))?;
     Ok(ChannelId::new(parsed))
 }
