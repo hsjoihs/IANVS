@@ -6,20 +6,11 @@ use serenity::model::id::ChannelId;
 pub struct Config {
     #[serde(deserialize_with = "deserialize_trimmed_nonempty")]
     pub discord_token: String,
-    #[serde(
-        deserialize_with = "deserialize_optional_channel_id",
-        default
-    )]
+    #[serde(deserialize_with = "deserialize_optional_channel_id")]
     pub discord_channel_id: Option<ChannelId>,
-    #[serde(
-        deserialize_with = "deserialize_optional_channel_id",
-        default
-    )]
+    #[serde(deserialize_with = "deserialize_optional_channel_id")]
     pub discord_user_notification_channel_id: Option<ChannelId>,
-    #[serde(
-        deserialize_with = "deserialize_optional_channel_id",
-        default
-    )]
+    #[serde(deserialize_with = "deserialize_optional_channel_id")]
     pub discord_mac_inquiry_channel_id: Option<ChannelId>,
     #[serde(default = "default_discord_channel_capacity")]
     pub discord_channel_capacity: usize,
