@@ -23,7 +23,8 @@ async fn main() -> anyhow::Result<()> {
     let (mut discord_bot_client, output_connector, association_requests_stream) =
         discord::new_discord_client_with_io_adapters(
             &config.discord_token,
-            &config.discord_channel_id,
+            config.get_user_notification_channel_id(),
+            config.get_mac_inquiry_channel_id(),
             config.discord_channel_capacity,
         )
         .await;

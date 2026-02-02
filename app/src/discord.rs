@@ -124,7 +124,8 @@ impl EventHandler for IanvsDiscordBotEventHandler {
 
 struct IanvsDiscordBotOutputAdapter<H: CacheHttp> {
     http: H,
-    notification_destination_channel: ChannelId,
+    user_notification_channel: ChannelId,
+    mac_inquiry_channel: ChannelId,
 }
 
 impl<H: CacheHttp> IanvsDiscordBotOutputAdapter<H> {
@@ -143,7 +144,7 @@ impl<H: CacheHttp> IanvsDiscordBotOutputAdapter<H> {
             );
 
         if let Err(err) = self
-            .notification_destination_channel
+            .mac_inquiry_channel
             .send_message(&self.http, builder)
             .await
         {
@@ -164,7 +165,7 @@ impl<H: CacheHttp> crate::app::HasOutputConnectors for IanvsDiscordBotOutputAdap
             .allowed_mentions(CreateAllowedMentions::new().users(vec![user_id]));
 
         if let Err(err) = self
-            .notification_destination_channel
+            .user_notification_channel
             .send_message(&self.http, builder)
             .await
         {
@@ -194,7 +195,7 @@ impl<H: CacheHttp> crate::app::HasOutputConnectors for IanvsDiscordBotOutputAdap
             .allowed_mentions(CreateAllowedMentions::new().users(vec![user_id]));
 
         if let Err(err) = self
-            .notification_destination_channel
+            .user_notification_channel
             .send_message(&self.http, builder)
             .await
         {
@@ -216,7 +217,8 @@ impl<H: CacheHttp> crate::app::HasOutputConnectors for IanvsDiscordBotOutputAdap
 
 pub async fn new_discord_client_with_io_adapters(
     bot_token: &str,
-    communication_channel_id: &ChannelId,
+    user_notification_channel_id: ChannelId,
+    mac_inquiry_channel_id: ChannelId,
     association_request_channel_capacity: usize,
 ) -> (
     serenity::Client,
@@ -239,7 +241,8 @@ pub async fn new_discord_client_with_io_adapters(
 
     let output_adapter = IanvsDiscordBotOutputAdapter {
         http: client.http.clone(),
-        notification_destination_channel: *communication_channel_id,
+        user_notification_channel: user_notification_channel_id,
+        mac_inquiry_channel: mac_inquiry_channel_id,
     };
 
     (
